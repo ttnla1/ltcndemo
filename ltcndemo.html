@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Thời Gian Biểu Cá Nhân</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fb;
+    margin: 0;
+    padding: 20px;
+}
+h1 {
+    text-align: center;
+}
+.controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+button.primary { background: #4f46e5; color: #fff; }
+button.danger { background: #ef4444; color: #fff; }
+button.gray { background: #9ca3af; color: #fff; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    vertical-align: top;
+}
+th {
+    background: var(--headerColor, #e0e7ff);
+}
+.time {
+    font-weight: bold;
+}
+.cell input {
+    width: 100%;
+    margin-bottom: 4px;
+}
+.task {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 4px;
+}
+.task.done span {
+    text-decoration: line-through;
+    color: gray;
+}
+.task span {
+    flex: 1;
+}
+.small {
+    font-size: 12px;
+    color: #555;
+}
+</style>
+</head>
+
+<body>
+
+<h1>📅 Thời Gian Biểu Cá Nhân</h1>
+
+<div class="controls">
+    <button class="primary" onclick="addTime()">➕ Thêm khung giờ</button>
+    <button class="gray" onclick="changeColor()">🎨 Đổi màu</button>
+    <button class="danger" onclick="clearAll()">🗑 Xóa tất cả</button>
+</div>
+
+<table id="schedule">
+<thead>
+<tr>
+    <th>Giờ</th>
+    <th>Thứ 2</th>
+    <th>Thứ 3</th>
+    <th>Thứ 4</th>
+    <th>Thứ 5</th>
+    <th>Thứ 6</th>
+    <th>Thứ 7</th>
+    <th>CN</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+let scheduleData = {};
+const DAYS = 7;
+
+/* ===== LƯU / TẢI ===== */
+function save() {
+    localStorage.setItem('studySchedule', JSON.stringify(scheduleData));
+}
+function load() {
+    const data = localStorage.getItem('studySchedule');
+    if (data) scheduleData = JSON.parse(data);
+}
+
+/* ===== KHỞI TẠO ===== */
+document.addEventListener('DOMContentLoaded', () => {
+    load();
+    loadColor();
+    render();
+});
+
+/* ===== RENDER ===== */
+function render() {
+    const tbody = document.querySelector('#schedule tbody');
+    tbody.innerHTML = '';
+
+    const times = Object.keys(scheduleData);
+    if (times.length === 0) {
+        addTime('7:00 - 8:00');
+        return;
+    }
+
+    times.forEach(time => {
+        const tr = document.createElement('tr');
+
+        const tdTime = document.createElement('td');
+        tdTime.className = 'time';
+        tdTime.contentEditable = true;
+        tdTime.innerText = time;
+        tdTime.onblur = () => renameTime(time, tdTime.innerText.trim());
+        tr.appendChild(tdTime);
+
+        for (let d = 0; d < DAYS; d++) {
+            tr.appendChild(renderCell(time, d));
+        }
+
+        tbody.appendChild(tr);
+    });
+}
+
+/* ===== Ô NGÀY ===== */
+function renderCell(time, day) {
+    const cell = document.createElement('td');
+    cell.className = 'cell';
+
+    const data = scheduleData[time][day];
+
+    const subject = document.createElement('input');
+    subject.placeholder = 'Môn học';
+    subject.value = data.subject || '';
+    subject.oninput = e => {
+        data.subject = e.target.value;
+        save();
+    };
+
+    const place = document.createElement('input');
+    place.placeholder = 'Địa chỉ';
+    place.value = data.place || '';
+    place.oninput = e => {
+        data.place = e.target.value;
+        save();
+    };
+
+    cell.append(subject, place);
+
+    data.tasks.forEach((t, i) => {
+        const div = document.createElement('div');
+        div.className = 'task' + (t.done ? ' done' : '');
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = t.done;
+        cb.onchange = () => {
+            t.done = cb.checked;
+            save();
+            render();
+        };
+
+        const span = document.createElement('span');
+        span.innerText = t.text;
+        span.contentEditable = true;
+        span.onblur = () => {
+            t.text = span.innerText;
+            save();
+        };
+
+        const del = document.createElement('button');
+        del.innerText = '✕';
+        del.onclick = () => {
+            data.tasks.splice(i, 1);
+            save();
+            render();
+        };
+
+        div.append(cb, span, del);
+        cell.appendChild(div);
+    });
+
+    const addTask = document.createElement('button');
+    addTask.className = 'small';
+    addTask.innerText = '+ Task';
+    addTask.onclick = () => {
+        data.tasks.push({ text: 'Việc mới', done: false });
+        save();
+        render();
+    };
+
+    cell.appendChild(addTask);
+    return cell;
+}
+
+/* ===== THÊM / ĐỔI KHUNG GIỜ ===== */
+function addTime(timeText) {
+    const time = timeText || prompt('Nhập khung giờ:');
+    if (!time || scheduleData[time]) return;
+
+    scheduleData[time] = {};
+    for (let d = 0; d < DAYS; d++) {
+        scheduleData[time][d] = { subject: '', place: '', tasks: [] };
+    }
+    save();
+    render();
+}
+
+function renameTime(oldTime, newTime) {
+    if (!newTime || newTime === oldTime) return;
+    scheduleData[newTime] = scheduleData[oldTime];
+    delete scheduleData[oldTime];
+    save();
+    render();
+}
+
+/* ===== MÀU ===== */
+function changeColor() {
+    const c = prompt('Nhập màu (vd: #e0e7ff)');
+    if (!c) return;
+    document.documentElement.style.setProperty('--headerColor', c);
+    localStorage.setItem('headerColor', c);
+}
+function loadColor() {
+    const c = localStorage.getItem('headerColor');
+    if (c) document.documentElement.style.setProperty('--headerColor', c);
+}
+
+/* ===== XÓA ===== */
+function clearAll() {
+    if (!confirm('Xóa toàn bộ thời gian biểu?')) return;
+    scheduleData = {};
+    localStorage.removeItem('studySchedule');
+    render();
+}
+</script>
+
+</body>
+</html>
